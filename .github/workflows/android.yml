@@ -137,7 +137,7 @@ jobs:
         working-directory: android
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleDebug lintDebug --stacktrace
+          ./gradlew --no-daemon clean assembleDebug lintDebug --stacktrace
 
       - name: Build release
         if: github.event_name != 'pull_request'
@@ -149,7 +149,7 @@ jobs:
           FLICKER_KEY_PASSWORD: ${{ secrets.FLICKER_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease --stacktrace
+          ./gradlew --no-daemon clean assembleRelease --stacktrace
 
       - name: Проверить подпись, выравнивание и манифест
         if: github.event_name != 'pull_request'
