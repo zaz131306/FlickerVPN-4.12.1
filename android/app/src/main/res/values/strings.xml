@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <string name="app_name">Flicker VPN</string>
+
+    <!-- каналы уведомлений -->
+    <string name="channel_tunnel">Туннель</string>
+    <string name="channel_status">События</string>
+
+    <!-- уведомления -->
+    <string name="notif_starting">Подключение…</string>
+    <string name="notif_connected">Подключено: %1$s</string>
+    <string name="notif_switched">Сервер умер — переключено на %1$s</string>
+    <string name="notif_server_died">Сервер умер, запасных узлов нет — туннель остановлен</string>
+    <string name="action_disconnect">Отключить</string>
+
+    <!-- кнопки -->
+    <string name="btn_refresh">Обновить</string>
+    <string name="btn_probe">Проверить</string>
+    <string name="btn_connect">Подключить</string>
+    <string name="btn_disconnect">Отключить</string>
+    <string name="btn_settings">Настройки</string>
+    <string name="action_connect_here">Подключиться</string>
+    <string name="action_about">О программе</string>
+
+    <!-- статусы -->
+    <string name="status_connected">ПОДКЛЮЧЕНО</string>
+    <string name="status_disconnected">НЕ ПОДКЛЮЧЕНО</string>
+    <string name="status_connected_to">Подключено: %1$s</string>
+    <string name="status_selected">Выбран: %1$s</string>
+    <string name="status_no_selection">Выберите сервер из списка</string>
+    <string name="status_connecting">Подключение…</string>
+    <string name="status_probing">Проверка: %1$d/%2$d</string>
+    <string name="empty_hint">Список пуст — нажмите «Обновить», чтобы загрузить подписки</string>
+
+    <!-- ошибки -->
+    <string name="dlg_error_title">Ошибка</string>
+    <string name="err_no_server">Сервер не выбран</string>
+    <string name="err_demo_server">Демо-сервер не подключается — выберите реальный узел</string>
+    <string name="err_vpn_denied">Доступ к VPN не выдан</string>
+    <string name="err_native_missing">Нативное ядро (libflickerbox.so) не загружено.\n\nСоберите AAR и пересоберите APK — см. BUILD-ANDROID.md.</string>
+    <string name="err_nothing_to_probe">Проверять нечего — сначала обновите подписки</string>
+    <string name="err_source_invalid">Некорректный URL или источник уже есть</string>
+    <string name="msg_source_added">Источник добавлен</string>
+
+    <!-- настройки -->
+    <string name="settings_title">Настройки</string>
+    <string name="pref_auto_refresh">Автообновление подписок</string>
+    <string name="pref_allow_hy2">Экспериментальные UDP (Hysteria2)</string>
+    <string name="pref_dns">DNS через туннель</string>
+    <string name="pref_dns_hint">1.1.1.1</string>
+    <string name="pref_add_source_hint">Новая подписка: https://…</string>
+    <string name="pref_add_source">Добавить</string>
+    <string name="pref_sources">Источники подписок</string>
+
+    <!-- о программе -->
+    <string name="about_title">Flicker VPN</string>
+    <string name="about_text">Версия %1$s · ядро %2$s\n\n
+VPN-клиент: VLESS+Reality (Vision/uTLS), Trojan, VMess, Shadowsocks,
+WireGuard (включая «матрёшку» через VLESS), Hysteria2 (экспериментальный).\n\n
+Серверы берутся из публичных подписок и проверяются многоэтапно
+(TCP → QUIC → HTTP через туннель → медиана задержки → GeoIP).\n\n
+Транспорт — sing-box (libbox), © nekohasekai, GPL-3.0.\n
+Это приложение — свободное ПО: GNU GPL v3 или новее.
+Исходный код: https://github.com/your-org/flicker-vpn (см. README).</string>
+    <!-- Описания каналов уведомлений: на Android 8+ видны в настройках
+         приложения. Без них пользователь видит пустые строки. -->
+    <string name="channel_tunnel_desc">Показывает, что туннель активен, и текущий узел</string>
+    <string name="channel_status_desc">Ошибки подключения и переподключения</string>
+
+    <!-- === добавлено при интеграции плитки/автозапуска/паузы === -->
+    <string name="mode_vpn">VPN</string>
+    <string name="mode_proxy">Прокси</string>
+
+    <string name="tile_on">Подключено</string>
+    <string name="tile_connecting">Подключение…</string>
+    <string name="tile_failed">Ошибка</string>
+
+    <string name="status_paused">Приостановлено</string>
+    <string name="status_error">Не удалось подключиться</string>
+
+    <string name="action_pause">Пауза</string>
+    <string name="action_resume">Продолжить</string>
+
+    <string name="pref_autostart">Запускать после перезагрузки</string>
+    <string name="pref_autostart_summary">Поднимать туннель автоматически при включении устройства</string>
+    <string name="pref_auto_reconnect">Переподключаться автоматически</string>
+    <string name="pref_auto_reconnect_summary">При обрыве пробовать снова, с нарастающей паузой</string>
+    <string name="pref_battery">Отключить оптимизацию батареи</string>
+    <string name="pref_battery_summary">Без этого система может убить туннель через несколько минут</string>
+    <string name="pref_sources_health">Состояние источников</string>
+    <string name="pref_sources_reset">Забыть ошибки источников</string>
+
+    <string name="battery_dialog_title">Разрешить фоновую работу?</string>
+    <string name="battery_dialog_message">Без этого система остановит туннель через несколько минут после выключения экрана. Заметного расхода батареи исключение не даёт, но без него VPN будет отваливаться.</string>
+    <string name="battery_dialog_ok">Открыть настройки</string>
+    <string name="battery_dialog_later">Позже</string>
+
+    <!-- Журнал сбоев: нужен, чтобы причину падения можно было прочитать
+         с самого телефона, без компьютера и adb. -->
+    <string name="action_crash_log">Журнал сбоев</string>
+    <string name="crash_log_title">Журнал сбоев</string>
+    <string name="crash_log_empty">Записей нет. Если приложение всё равно закрывалось само — крах нативный (внутри libflickerbox.so), Java-обработчик его не ловит. Такой крах виден только в logcat: команды в docs/06-TESTING.md.</string>
+    <string name="crash_log_path">Файл: %1$s</string>
+    <string name="crash_log_clear">Очистить</string>
+    <string name="crash_detected_title">Прошлый запуск завершился аварийно</string>
+    <string name="crash_detected_message">Процесс был убит внезапно, без штатного завершения. Это нативный крах или убийство системой. Открой меню «Журнал сбоев» — если там пусто, причина видна только в logcat.</string>
+    <string name="action_diagnostics">Диагностика</string>
+    <string name="diagnostics_title">Диагностика</string>
+    <string name="diagnostics_hint">Секреты узла (uuid, ключи, пароли) вычищены — дамп можно пересылать. Скопируй и пришли вместе с logcat.</string>
+    <string name="diagnostics_copy">Копировать</string>
+    <string name="diagnostics_saved">Диагностика скопирована в буфер обмена</string>
+
+    <!-- ══ v4.7.0: карточка состояния и переключатель режимов ══ -->
+    <string name="mode_bypass">Обход DPI</string>
+    <string name="mode_vpn_node">VPN через узел</string>
+    <string name="mode_proxy_local">Локальный прокси</string>
+    <string name="status_mode">Режим: %1$s</string>
+    <string name="status_target_node">Узел: %1$s</string>
+    <string name="status_target_preset">Пресет: %1$s</string>
+    <string name="status_target_none">Цель не выбрана</string>
+    <string name="traffic_line">↑ %1$s/с · ↓ %2$s/с   всего ↑ %3$s · ↓ %4$s</string>
+    <string name="traffic_idle">Трафик: — (туннель не поднят или ядро не отдаёт счётчики)</string>
+    <string name="desync_title">Состояние рассинхронизировано</string>
+    <string name="desync_body">Приложение считает, что VPN включён, а живого туннеля нет. Ключик в статусбаре может висеть, а трафик — уходить в никуда.</string>
+    <string name="btn_hard_stop">Снять принудительно</string>
+    <string name="mode_bypass_wip">Режим «Обход DPI» ещё не подключён к туннелю — интеграция описана в docs/12-BYPASS-DPI.md §5.1. Работают режимы «VPN-узел» и «Прокси».</string>
+
+    <!-- ══ v4.10.0: Telegram-туннель (MTProto-WS) ══ -->
+    <string name="channel_tgws">Telegram-туннель</string>
+    <string name="channel_tgws_desc">Локальный MTProto-прокси для Telegram через WebSocket/CloudFlare</string>
+
+    <string name="tgws_title">Telegram-туннель</string>
+    <string name="tgws_notif_title">Telegram-туннель</string>
+    <string name="tgws_starting">Запуск…</string>
+    <string name="tgws_running">Работает</string>
+    <string name="tgws_restarting">Перезапуск…</string>
+    <string name="tgws_stopping">Остановка…</string>
+    <string name="tgws_action_restart">Перезапустить</string>
+
+    <string name="tgws_badge_off">НЕ ЗАПУЩЕН</string>
+    <string name="tgws_badge_starting">ЗАПУСК…</string>
+    <string name="tgws_badge_on">РАБОТАЕТ</string>
+    <string name="tgws_badge_err">ОШИБКА</string>
+
+    <string name="tgws_btn_start">Запустить</string>
+    <string name="tgws_btn_stop">Остановить</string>
+    <string name="tgws_btn_restart">Перезапустить</string>
+    <string name="tgws_btn_open_tg">Открыть в Telegram</string>
+    <string name="tgws_btn_copy_link">Скопировать ссылку tg://proxy</string>
+    <string name="tgws_btn_copy_secret">Скопировать secret</string>
+    <string name="tgws_btn_new_secret">Сменить секрет</string>
+    <string name="tgws_btn_apply">Применить и перезапустить</string>
+
+    <string name="tgws_copied">Скопировано</string>
+    <string name="tgws_no_tg">Не найдено приложение, которое понимает tg://proxy.\n\nОфициальный Telegram для Android эту ссылку не обрабатывает — пропишите прокси вручную (см. ниже).</string>
+    <string name="tgws_saved">Настройки сохранены. Перезапустите туннель, чтобы они применились.</string>
+    <string name="tgws_secret_changed">Секрет заменён. Его нужно заново вписать в Telegram.</string>
+
+    <string name="tgws_what_title">Что это и зачем</string>
+    <string name="tgws_what">Это НЕ VPN. Приложение поднимает локальный MTProto-прокси на 127.0.0.1, а тот ведёт трафик Telegram в дата-центры через зашифрованные WebSocket-соединения (обычно через CloudFlare). Ключик VPN в статусбаре не появляется, остальные приложения не затрагиваются.\n\nРаботает одновременно с режимами «VPN-узел» и «Обход DPI».\n\nПрокси нужно прописать ВНУТРИ Telegram: Telegram → Настройки → Данные и память → Прокси-сервер → Добавить прокси → MTProto.</string>
+
+    <string name="tgws_manual_title">Ручной ввод в Telegram</string>
+    <string name="tgws_lbl_server">Сервер</string>
+    <string name="tgws_lbl_port">Порт</string>
+    <string name="tgws_lbl_secret">Секрет</string>
+    <string name="tgws_copy_short">Копия</string>
+    <string name="tgws_secret_hint">Вписывайте целиком, вместе с dd в начале</string>
+
+    <string name="tgws_settings_title">Настройки</string>
+    <string name="tgws_lbl_pool">Пул WS-соединений (0–16)</string>
+    <string name="tgws_lbl_cf">Через CloudFlare</string>
+    <string name="tgws_lbl_cf_hint">Выключайте только если сам CloudFlare заблокирован — тогда трафик пойдёт напрямую в дата-центры Telegram</string>
+    <string name="tgws_lbl_cf_domain">Свой домен CF-воркера (необязательно)</string>
+    <string name="tgws_lbl_dc">Адреса дата-центров (необязательно)</string>
+    <string name="tgws_lbl_dc_hint">Формат 1:149.154.175.50,2:149.154.167.51. Пусто — определять автоматически</string>
+    <string name="tgws_lbl_verbose">Подробный лог</string>
+    <string name="tgws_lbl_awake">Не давать процессору засыпать</string>
+    <string name="tgws_lbl_awake_hint">Без этого Telegram отваливается через пару минут после выключения экрана</string>
+    <string name="tgws_lbl_autostart">Запускать после перезагрузки</string>
+
+    <string name="tgws_stats_title">Статистика</string>
+    <string name="tgws_stats_empty">—</string>
+    <string name="tgws_log_title">Журнал ядра</string>
+    <string name="tgws_log_empty">Пусто. Журнал появляется после запуска туннеля.</string>
+    <string name="tgws_log_copy">Скопировать журнал</string>
+    <string name="tgws_log_copied">Журнал скопирован</string>
+
+    <string name="tgws_missing_so">Библиотека libtgwsproxy.so не найдена в APK под вашу архитектуру процессора. Telegram-туннель в этой сборке работать не будет; остальные режимы не затронуты.</string>
+    <string name="tgws_endpoint">Прокси: %1$s</string>
+    <string name="tgws_off_detail">Остановлен · %1$s</string>
+    <string name="tgws_main_row">Telegram-туннель: %1$s</string>
+    <string name="tgws_main_row_on">работает · %1$s</string>
+    <string name="tgws_main_row_off">выключен</string>
+    <string name="tgws_main_row_off_short">Telegram-туннель: выключен</string>
+    <string name="tgws_main_row_on_short">Telegram-туннель: работает · %1$s</string>
+    <string name="tgws_main_row_starting">Telegram-туннель: запуск…</string>
+    <string name="tgws_main_row_err">Telegram-туннель: ошибка</string>
+    <string name="action_tgws">Telegram-туннель</string>
+
+    <string name="action_search">Поиск</string>
+    <string name="action_settings">Настройки</string>
+    <string name="action_update_subs">Обновить подписки</string>
+    <string name="action_exit">Выход</string>
+    <string name="probe_disabled_while_connected">Отключите VPN, чтобы проверить серверы</string>
+    <string name="err_invalid_dns">Некорректный DNS — укажите IP (например 1.1.1.1)</string>
+</resources>

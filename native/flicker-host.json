@@ -1,0 +1,8 @@
+{
+  "name": "com.flicker.vpn",
+  "description": "FLICKER VPN native tunnel (VLESS Reality / Trojan / WireGuard / HY2)",
+  "path": "/usr/local/bin/flicker-host",
+  "type": "stdio",
+  "allowed_extensions": ["flicker-vpn@local.dev"]
+}
+

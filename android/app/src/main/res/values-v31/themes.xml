@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+    v4.10.2: системный сплэш (Android 12+) — змеиный арт вместо пустого фона.
+
+    Атрибуты android:windowSplashScreen* появились в API 31. На более ранних
+    версиях Android их нет. Если объявить их в values/themes.xml (для всех API),
+    lint ругается на NewApi (fatal в release) и сборка падает.
+
+    Решение — вынести их в этот файл: Android автоматически выберет
+    values-v31/themes.xml на API 31+, а на API < 31 возьмёт values/themes.xml
+    без этих атрибутов. Никаких условных проверок в коде не нужно.
+-->
+<resources>
+    <!-- Переопределяем только стиль темы, добавляя сплэш-атрибуты.
+         Остальные атрибуты наследуются от основного стиля Theme.Flicker
+         через parent: в этом файле мы объявляем тот же стиль, но с
+         дополнительными item'ами. Android мерджит их по имени стиля. -->
+    <style name="Theme.Flicker" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">#0B0F1A</item>
+        <item name="colorSecondary">@color/ok</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="alertDialogTheme">@style/Theme.Flicker.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/Theme.Flicker.Dialog</item>
+        <!-- Собственно сплэш: доступно только с API 31 -->
+        <item name="android:windowSplashScreenBackground">@color/bg</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/splash_snakes</item>
+    </style>
+</resources>

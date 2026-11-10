@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item
+        android:id="@+id/action_search"
+        android:title="@string/action_search"
+        android:icon="@android:drawable/ic_menu_search"
+        app:showAsAction="ifRoom|collapseActionView"
+        app:actionViewClass="androidx.appcompat.widget.SearchView" />
+    <item
+        android:id="@+id/action_settings"
+        android:title="@string/action_settings" />
+    <item
+        android:id="@+id/action_update_subs"
+        android:title="@string/action_update_subs" />
+    <item
+        android:id="@+id/action_diagnostics"
+        android:title="@string/action_diagnostics" />
+    <item
+        android:id="@+id/action_crash_log"
+        android:title="@string/action_crash_log" />
+    <item
+        android:id="@+id/action_netcheck"
+        android:title="Проверка интернета" />
+    <item
+        android:id="@+id/action_strategy_test"
+        android:title="Подобрать обход DPI" />
+    <item
+        android:id="@+id/action_tgws"
+        android:title="@string/action_tgws" />
+    <item
+        android:id="@+id/action_hard_stop"
+        android:title="Экстренно выключить VPN" />
+    <item
+        android:id="@+id/action_exit"
+        android:title="@string/action_exit" />
+    <item
+        android:id="@+id/action_about"
+        android:title="@string/action_about" />
+</menu>

@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <style name="Theme.Flicker" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="colorPrimary">@color/accent</item>
+        <item name="colorOnPrimary">#0B0F1A</item>
+        <item name="colorSecondary">@color/ok</item>
+        <item name="android:colorBackground">@color/bg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="android:statusBarColor">@color/bg</item>
+        <item name="android:navigationBarColor">@color/bg</item>
+        <!-- v4.10.2: системный сплэш (Android 12+) перенесён в values-v31/themes.xml.
+             В API < 31 атрибуты android:windowSplashScreen* отсутствуют, и lint
+             (NewApi, fatal) роняет release-сборку, если объявить их здесь. -->
+        <item name="android:textColorPrimary">@color/text</item>
+        <item name="android:textColorSecondary">@color/muted</item>
+        <item name="alertDialogTheme">@style/Theme.Flicker.Dialog</item>
+        <item name="materialAlertDialogTheme">@style/Theme.Flicker.Dialog</item>
+    </style>
+
+    <style name="Theme.Flicker.Dialog" parent="ThemeOverlay.Material3.MaterialAlertDialog">
+        <item name="android:colorBackground">@color/surface</item>
+        <item name="colorOnSurface">@color/text</item>
+        <item name="colorPrimary">@color/accent</item>
+    </style>
+
+    <!-- ══ v4.10.0: стили экрана Telegram-туннеля (activity_tg_ws.xml) ══
+         Вынесены сюда, потому что в разметке они повторяются по 3-5 раз,
+         а layout_width/height/weight обязаны задаваться ровно один раз —
+         иначе AGP ругается на дубли и на «missing layout_width».
+
+         Отступы заданы через paddingLeft/Right, НЕ paddingHorizontal:
+         paddingHorizontal с API 26, а minSdk = 24 и lint NewApi = fatal. -->
+    <style name="TgWsSection">
+        <item name="android:layout_marginTop">16dp</item>
+        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:textColor">@color/muted</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="TgWsRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">10dp</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:orientation">horizontal</item>
+    </style>
+
+    <style name="TgWsLabel">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="TgWsValue">
+        <item name="android:layout_width">0dp</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_weight">1</item>
+        <item name="android:layout_marginLeft">10dp</item>
+        <item name="android:layout_marginStart">10dp</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textIsSelectable">true</item>
+        <item name="android:textSize">12sp</item>
+    </style>
+
+    <style name="TgWsCopy">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/mode_btn</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:paddingLeft">10dp</item>
+        <item name="android:paddingTop">6dp</item>
+        <item name="android:paddingRight">10dp</item>
+        <item name="android:paddingBottom">6dp</item>
+        <item name="android:textColor">@color/text</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+</resources>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Молния FLICKER (24dp, белая — для статус-бара) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M14.88,1.44 L5.76,13.44 L10.56,13.44 L8.16,22.56 L18.24,9.6 L12.96,9.6 L16.32,1.44 Z" />
+</vector>

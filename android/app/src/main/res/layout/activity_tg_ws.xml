@@ -1,0 +1,544 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+    v4.10.0: экран Telegram-туннеля (MTProto-WS).
+
+    Отдельный экран, а не вкладка главного, по трём причинам:
+      1. Это не режим TunnelService. Здесь нет ни TUN, ни списка узлов, ни
+         подписок — всё, что показано на главном экране, к Telegram-туннелю
+         не относится. Смешивать их на одном экране значит вводить в заблуждение.
+      2. MainActivity уже ~1300 строк и держит ViewBinding на
+         activity_main.xml; перестройка его во ViewPager2 вслепую (без
+         возможности собрать) — неоправданный риск.
+      3. Экран независим: его можно открыть и закрыть, не трогая VPN.
+
+    Корень — ScrollView: содержимое длиннее экрана даже на 6,4" (Galaxy M21).
+
+    ВНИМАНИЕ ПРО АТРИБУТЫ: здесь намеренно НЕ используются
+    paddingHorizontal / marginHorizontal / importantForAutofill — они с API 26,
+    а minSdk = 24, и lint-правило NewApi в этом проекте выставлено в fatal.
+    Отступы заданы paddingLeft/Right/Top/Bottom и marginLeft/Start.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/surface"
+        app:navigationIcon="?attr/homeAsUpIndicator"
+        app:title="@string/tgws_title"
+        app:titleTextColor="@color/text" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingBottom="16dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="12dp"
+            android:paddingRight="12dp">
+
+            <!-- ══ ПЛАШКА: в APK нет .so под эту ABI ══ -->
+            <TextView
+                android:id="@+id/missingBanner"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/banner_alert"
+                android:padding="12dp"
+                android:text="@string/tgws_missing_so"
+                android:textColor="@color/text"
+                android:textSize="12sp"
+                android:visibility="gone" />
+
+            <!-- ══ СТАТУС ══ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:background="@drawable/card_bg"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/statusBadge"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/badge_off"
+                        android:paddingLeft="10dp"
+                        android:paddingTop="4dp"
+                        android:paddingRight="10dp"
+                        android:paddingBottom="4dp"
+                        android:text="@string/tgws_badge_off"
+                        android:textColor="@color/muted"
+                        android:textSize="11sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/statusText"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginLeft="12dp"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:text="—"
+                        android:textColor="@color/text"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/errorText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="@color/dead"
+                    android:textIsSelectable="true"
+                    android:textSize="12sp"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/statsText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:fontFamily="monospace"
+                    android:text="@string/tgws_stats_empty"
+                    android:textColor="@color/muted"
+                    android:textIsSelectable="true"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <!-- ══ КНОПКИ ══ -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:backgroundTint="@color/accent"
+                android:text="@string/tgws_btn_start"
+                android:textColor="#0B0F1A"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnRestart"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/tgws_btn_restart"
+                    android:textColor="@color/text"
+                    app:strokeColor="@color/stroke" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnOpenTg"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1"
+                    android:text="@string/tgws_btn_open_tg"
+                    android:textColor="@color/text"
+                    app:strokeColor="@color/stroke" />
+            </LinearLayout>
+
+            <!-- ══ РЕКВИЗИТЫ ПРОКСИ (что вписывать в Telegram) ══ -->
+            <TextView
+                style="@style/TgWsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/tgws_manual_title" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout style="@style/TgWsRow">
+
+                    <TextView
+                        style="@style/TgWsLabel"
+                        android:text="@string/tgws_lbl_server" />
+
+                    <TextView
+                        android:id="@+id/valServer"
+                        style="@style/TgWsValue"
+                        android:text="127.0.0.1" />
+
+                    <TextView
+                        android:id="@+id/copyServer"
+                        style="@style/TgWsCopy"
+                        android:text="@string/tgws_copy_short" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/TgWsRow">
+
+                    <TextView
+                        style="@style/TgWsLabel"
+                        android:text="@string/tgws_lbl_port" />
+
+                    <TextView
+                        android:id="@+id/valPort"
+                        style="@style/TgWsValue"
+                        android:text="1443" />
+
+                    <TextView
+                        android:id="@+id/copyPort"
+                        style="@style/TgWsCopy"
+                        android:text="@string/tgws_copy_short" />
+                </LinearLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:orientation="vertical">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal">
+
+                        <TextView
+                            style="@style/TgWsLabel"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/tgws_lbl_secret" />
+
+                        <TextView
+                            android:id="@+id/copySecret"
+                            style="@style/TgWsCopy"
+                            android:text="@string/tgws_copy_short" />
+
+                        <TextView
+                            android:id="@+id/btnNewSecret"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginLeft="10dp"
+                            android:layout_marginStart="10dp"
+                            android:background="@drawable/mode_btn"
+                            android:clickable="true"
+                            android:focusable="true"
+                            android:paddingLeft="10dp"
+                            android:paddingTop="6dp"
+                            android:paddingRight="10dp"
+                            android:paddingBottom="6dp"
+                            android:text="@string/tgws_btn_new_secret"
+                            android:textColor="@color/text"
+                            android:textSize="11sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:id="@+id/valSecret"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:fontFamily="monospace"
+                        android:text="—"
+                        android:textColor="@color/text"
+                        android:textIsSelectable="true"
+                        android:textSize="12sp" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp"
+                        android:text="@string/tgws_secret_hint"
+                        android:textColor="@color/muted"
+                        android:textSize="11sp" />
+                </LinearLayout>
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnCopyLink"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:text="@string/tgws_btn_copy_link"
+                    android:textColor="@color/accent" />
+            </LinearLayout>
+
+            <!-- ══ ПОЯСНЕНИЕ ══ -->
+            <TextView
+                style="@style/TgWsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/tgws_what_title" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:padding="14dp"
+                android:text="@string/tgws_what"
+                android:textColor="@color/muted"
+                android:textIsSelectable="true"
+                android:textSize="12sp" />
+
+            <!-- ══ НАСТРОЙКИ ══ -->
+            <TextView
+                style="@style/TgWsSection"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/tgws_settings_title" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/card_bg"
+                android:orientation="vertical"
+                android:padding="14dp">
+
+                <LinearLayout style="@style/TgWsRow">
+
+                    <TextView
+                        style="@style/TgWsLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/tgws_lbl_port" />
+
+                    <EditText
+                        android:id="@+id/inPort"
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/mode_btn"
+                        android:fontFamily="monospace"
+                        android:gravity="center"
+                        android:hint="1443"
+                        android:inputType="number"
+                        android:maxLength="5"
+                        android:paddingLeft="8dp"
+                        android:paddingTop="6dp"
+                        android:paddingRight="8dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="@color/text"
+                        android:textColorHint="@color/muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/TgWsRow">
+
+                    <TextView
+                        style="@style/TgWsLabel"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/tgws_lbl_pool" />
+
+                    <EditText
+                        android:id="@+id/inPool"
+                        android:layout_width="110dp"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/mode_btn"
+                        android:fontFamily="monospace"
+                        android:gravity="center"
+                        android:hint="4"
+                        android:inputType="number"
+                        android:maxLength="2"
+                        android:paddingLeft="8dp"
+                        android:paddingTop="6dp"
+                        android:paddingRight="8dp"
+                        android:paddingBottom="6dp"
+                        android:textColor="@color/text"
+                        android:textColorHint="@color/muted"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/swCf"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:checked="true"
+                    android:text="@string/tgws_lbl_cf"
+                    android:textColor="@color/text"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tgws_lbl_cf_hint"
+                    android:textColor="@color/muted"
+                    android:textSize="11sp" />
+
+                <EditText
+                    android:id="@+id/inCfDomain"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:background="@drawable/mode_btn"
+                    android:fontFamily="monospace"
+                    android:hint="@string/tgws_lbl_cf_domain"
+                    android:inputType="textUri"
+                    android:maxLines="2"
+                    android:paddingLeft="10dp"
+                    android:paddingTop="8dp"
+                    android:paddingRight="10dp"
+                    android:paddingBottom="8dp"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/muted"
+                    android:textSize="12sp" />
+
+                <EditText
+                    android:id="@+id/inDcIps"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:background="@drawable/mode_btn"
+                    android:fontFamily="monospace"
+                    android:hint="@string/tgws_lbl_dc"
+                    android:inputType="text"
+                    android:maxLines="3"
+                    android:paddingLeft="10dp"
+                    android:paddingTop="8dp"
+                    android:paddingRight="10dp"
+                    android:paddingBottom="8dp"
+                    android:textColor="@color/text"
+                    android:textColorHint="@color/muted"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tgws_lbl_dc_hint"
+                    android:textColor="@color/muted"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/swAwake"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:checked="true"
+                    android:text="@string/tgws_lbl_awake"
+                    android:textColor="@color/text"
+                    android:textSize="13sp" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/tgws_lbl_awake_hint"
+                    android:textColor="@color/muted"
+                    android:textSize="11sp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/swAutostart"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/tgws_lbl_autostart"
+                    android:textColor="@color/text"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.switchmaterial.SwitchMaterial
+                    android:id="@+id/swVerbose"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:checked="true"
+                    android:text="@string/tgws_lbl_verbose"
+                    android:textColor="@color/text"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnApply"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="12dp"
+                    android:backgroundTint="@color/accent"
+                    android:text="@string/tgws_btn_apply"
+                    android:textColor="#0B0F1A" />
+            </LinearLayout>
+
+            <!-- ══ ЖУРНАЛ ЯДРА ══ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/tgws_log_title"
+                    android:textColor="@color/muted"
+                    android:textSize="12sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/btnCopyLog"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/mode_btn"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:paddingLeft="10dp"
+                    android:paddingTop="6dp"
+                    android:paddingRight="10dp"
+                    android:paddingBottom="6dp"
+                    android:text="@string/tgws_log_copy"
+                    android:textColor="@color/text"
+                    android:textSize="11sp" />
+            </LinearLayout>
+
+            <ScrollView
+                android:id="@+id/logScroll"
+                android:layout_width="match_parent"
+                android:layout_height="220dp"
+                android:layout_marginTop="6dp"
+                android:background="@drawable/card_bg"
+                android:padding="10dp">
+
+                <TextView
+                    android:id="@+id/logText"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:fontFamily="monospace"
+                    android:text="@string/tgws_log_empty"
+                    android:textColor="@color/muted"
+                    android:textIsSelectable="true"
+                    android:textSize="10sp" />
+            </ScrollView>
+
+            <TextView
+                android:id="@+id/tgwsVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:gravity="center"
+                android:text="—"
+                android:textColor="@color/muted"
+                android:textSize="10sp" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>

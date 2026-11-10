@@ -1,0 +1,354 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+    v4.7.0: переработан верх экрана.
+
+    Что добавлено и зачем:
+      1. desyncBanner  — красная плашка «состояние рассинхронизировано».
+         Показывается, когда AppState говорит «подключено», а живого сервиса
+         нет (TunnelService.isLive == false). Это та самая ситуация, при которой
+         ключик в статусбаре висит, а кнопка «Отключить» ничего не делает.
+      2. statusCard    — карточка состояния: статус, режим, цель (узел ИЛИ
+         пресет обхода), счётчики трафика из Libbox.CommandStatus.
+      3. modeSwitcher  — три режима на видном месте, вместо пункта меню ⋮
+         «Режим: VPN / Прокси» (который к тому же подписан устаревше: режимов
+         теперь три).
+      4. btnHardStop   — принудительное отключение прямо на экране, а не только
+         в меню. Вызывает TunnelService.hardStop().
+
+    Существующие id (statusBadge, statusText, progress, emptyHint, serverList,
+    btnRefresh, btnProbe, btnConnect, btnSettings) сохранены — MainActivity
+    обращается к ним через ViewBinding, переименование сломало бы сборку.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg"
+    android:orientation="vertical">
+
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/surface"
+        app:title="@string/app_name"
+        app:titleTextColor="@color/text" />
+
+    <!-- ══ v4.10.2: змеиный баннер под тулбаром (брендинг).
+         Декоративный: id в коде не используется, ViewBinding его просто
+         пронесёт мимо. centerCrop обрезает арт по ширине экрана. ══ -->
+    <ImageView
+        android:id="@+id/snakeBanner"
+        android:layout_width="match_parent"
+        android:layout_height="110dp"
+        android:background="@color/bg"
+        android:contentDescription="@string/app_name"
+        android:scaleType="centerCrop"
+        android:src="@drawable/snake_banner" />
+
+    <!-- ══ КРАСНАЯ ПЛАШКА: состояние рассинхронизировано ══ -->
+    <LinearLayout
+        android:id="@+id/desyncBanner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/banner_alert"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/desyncText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Состояние рассинхронизировано: приложение считает, что VPN включён, а туннеля нет. Трафик может уходить в никуда."
+            android:textColor="@color/text"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/btnHardStop"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:background="@drawable/mode_btn_sel"
+            android:clickable="true"
+            android:focusable="true"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp"
+            android:text="Снять"
+            android:textColor="#0B0F1A"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ══ КАРТОЧКА СОСТОЯНИЯ ══ -->
+    <LinearLayout
+        android:id="@+id/statusCard"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/card_bg"
+        android:orientation="vertical"
+        android:padding="14dp">
+
+        <!-- строка 1: бейдж + основной текст (id сохранены) -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/statusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/badge_off"
+                android:paddingHorizontal="10dp"
+                android:paddingVertical="4dp"
+                android:text="@string/status_disconnected"
+                android:textColor="@color/muted"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/statusText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:text="@string/status_no_selection"
+                android:textColor="@color/muted"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <!-- строка 2: режим и цель -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/modeText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Режим: —"
+                android:textColor="@color/text"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/targetText"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="Цель не выбрана"
+                android:textColor="@color/muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <!-- строка 3: трафик (данные из Libbox.CommandStatus, раз в 2 с) -->
+        <TextView
+            android:id="@+id/trafficText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:fontFamily="monospace"
+            android:text="Трафик: —"
+            android:textColor="@color/muted"
+            android:textSize="11sp" />
+    </LinearLayout>
+
+    <!-- ══ ПЕРЕКЛЮЧАТЕЛЬ РЕЖИМОВ ══ -->
+    <LinearLayout
+        android:id="@+id/modeSwitcher"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="8dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnModeBypass"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:background="@drawable/mode_btn"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="Обход DPI"
+            android:textColor="@color/text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnModeVpn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/mode_btn"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="VPN-узел"
+            android:textColor="@color/text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnModeProxy"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/mode_btn"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center"
+            android:paddingVertical="10dp"
+            android:text="Прокси"
+            android:textColor="@color/text"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- ══ v4.10.0: СТРОКА TELEGRAM-ТУННЕЛЯ ══
+         Это НЕ четвёртый режим. Telegram-туннель — локальный MTProto-прокси,
+         который работает независимо от TUN и от выбранного выше режима: его
+         можно включить при выключенном VPN, при VPN-узле и при обходе DPI.
+         Поэтому он показан отдельной строкой-ссылкой, а не кнопкой в ряду
+         переключателя, — иначе казалось бы, что режимы взаимоисключающие.
+         Тап открывает TgWsActivity. -->
+    <LinearLayout
+        android:id="@+id/tgwsRow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="12dp"
+        android:layout_marginTop="8dp"
+        android:background="@drawable/card_bg"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <View
+            android:id="@+id/tgwsDot"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:background="@drawable/dot_unknown" />
+
+        <TextView
+            android:id="@+id/tgwsText"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="@string/tgws_main_row_off_short"
+            android:textColor="@color/muted"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="›"
+            android:textColor="@color/muted"
+            android:textSize="16sp" />
+    </LinearLayout>
+
+    <ProgressBar
+        android:id="@+id/progress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:indeterminate="true"
+        android:indeterminateTint="@color/accent"
+        android:visibility="invisible" />
+
+    <TextView
+        android:id="@+id/emptyHint"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:padding="24dp"
+        android:text="@string/empty_hint"
+        android:textColor="@color/muted"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/serverList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:paddingHorizontal="10dp"
+        android:paddingBottom="8dp" />
+
+    <!-- нижняя панель -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/surface"
+        android:orientation="horizontal"
+        android:padding="10dp">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnRefresh"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/btn_refresh"
+            android:textColor="@color/text"
+            app:strokeColor="@color/stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnProbe"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:text="@string/btn_probe"
+            android:textColor="@color/text"
+            app:strokeColor="@color/stroke" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnConnect"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:backgroundTint="@color/accent"
+            android:text="@string/btn_connect"
+            android:textColor="#0B0F1A" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnSettings"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="48dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="4dp"
+            android:contentDescription="@string/btn_settings"
+            android:text="⚙"
+            android:textColor="@color/muted"
+            android:textSize="18sp" />
+    </LinearLayout>
+</LinearLayout>

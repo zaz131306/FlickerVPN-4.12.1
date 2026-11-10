@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Android: артефакты сборки и тяжёлые бинарники не коммитим
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+captures/
+.externalNativeBuild/
+.cxx/
+# AAR ядра — бинарный (~40-60 МБ), собирается tools/build-libbox-aar.sh или CI
+app/libs/*.aar
+
+# Ключи подписи — никогда не коммитим. Потерянный/утёкший keystore
+# означает, что обновления больше не выпустить (или что чужой человек
+# может подписать вредоносную сборку вашим именем).
+*.jks
+*.keystore
+!debug.keystore
+signing.properties

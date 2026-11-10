@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <!-- Android 14 (API 34)+ требует отдельное разрешение на КАЖДЫЙ тип
+         foreground-сервиса. targetSdk здесь 35, поэтому разрешение обязательно.
+
+         ВАЖНО: разрешения android.permission.FOREGROUND_SERVICE_VPN НЕ СУЩЕСТВУЕТ,
+         ровно как и значения foregroundServiceType="vpn". Валидные типы (aapt2,
+         android-35): camera, connectedDevice, dataSync, health, location,
+         mediaPlayback, mediaProcessing, mediaProjection, microphone, phoneCall,
+         remoteMessaging, shortService, specialUse, systemExempted.
+         Для VpnService используется specialUse + property-подтип "vpn". -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Автозапуск туннеля после перезагрузки и после обновления приложения -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.QUICKBOOT_POWERON" />
+
+    <!-- Исключение из оптимизации батареи. Google Play разрешает это
+         VPN-клиентам: это один из явно перечисленных допустимых кейсов.
+         Без объявления разрешения ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+         на Android 12+ кидает SecurityException. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <!-- v4.10.0: Telegram-туннель. PARTIAL_WAKE_LOCK нужен, чтобы локальный
+         MTProto-прокси не замирал вместе с процессором: без него сокеты
+         останавливаются при выключенном экране и Telegram отваливается через
+         пару минут. Разрешение обычное (normal), запроса у пользователя не
+         спрашивает. Wakelock держится с таймаутом 25 мин и продлевается,
+         а не бессрочно — см. TgWsService.acquireWakeLock(). -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <!-- usesCleartextTraffic и networkSecurityConfig НЕ нужны и намеренно
+         не заданы: в Kotlin/Java-коде приложения нет ни одного сетевого вызова
+         (проверено: нет HttpURLConnection/OkHttp/URL/WebView/Socket). Весь
+         трафик, включая HTTP-пробы живости узлов, идёт внутри Go-ядра
+         (native/mobile, internal/probe) и через туннель libbox — на них
+         политика cleartext платформы Android не распространяется. -->
+
+    <application
+        android:name=".FlickerApp"
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.Flicker">
+
+        <activity
+            android:name=".SplashActivity"
+            android:exported="true"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.Flicker">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:launchMode="singleTop">
+        </activity>
+
+        <!-- VPN-туннель: sing-box (libbox) внутри VpnService -->
+        <!--
+            foregroundServiceType="specialUse", а НЕ "vpn".
+
+            Значения "vpn" в этом атрибуте не существует, и AAPT2 на нём падает:
+              error: 'vpn' is incompatible with attribute foregroundServiceType
+            ИЗ-ЗА ЭТОГО исходники не собирались вообще, и APK доводили руками —
+            а ручная перепаковка убила подпись v2 (docs/04-CODE-REVIEW.md §1.2).
+
+            Правильный способ для VpnService (так же в ByeByeDPI-x-tg и SFA):
+            specialUse + property PROPERTY_SPECIAL_USE_FGS_SUBTYPE = "vpn".
+            TunnelService.startForegroundNotif() уже передаёт
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MANIFEST, то есть берёт тип
+            отсюда из манифеста — всё сходится.
+        -->
+        <service
+            android:name=".TunnelService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:stopWithTask="false">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+            <!-- «Постоянный VPN» в настройках системы. false намеренно:
+                 на бесплатных узлах always-on оставляет устройство без
+                 интернета, когда все узлы умрут. -->
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
+        </service>
+        <!--
+            v4.11.0: обход DPI — отдельный одноразовый процесс (docs/21),
+            схема эталона ByeByeDPI-x-tg (:native + killProcess на остановке).
+            v4.12.0: внутри процесса теперь ПОЛНЫЙ порт рабочей схемы эталона
+            (ByeDpiVpnService): byedpi (JNI, SOCKS5 127.0.0.1:1080) +
+            tun2socks hev-socks5-tunnel на fd из VpnService.Builder.establish().
+            Sing-box (libflickerbox.so) в обходе DPI больше не участвует.
+            Умер процесс = всё освобождено, следующий старт с нуля.
+
+            intent-filter android.net.VpnService НЕТ намеренно: системный
+            контрольный bind (канал onRevoke) обязан резолвиться в ОДИН
+            компонент — им остаётся TunnelService основного процесса; во
+            время обхода тот инертен и пересылает стоп сюда. establish()
+            система проверяет по UID приложения, не по компоненту.
+        -->
+        <service
+            android:name=".BypassVpnService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:process=":bypass"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="vpn" />
+            <meta-data
+                android:name="android.net.VpnService.SUPPORTS_ALWAYS_ON"
+                android:value="false" />
+        </service>
+        <!--
+            Плитка в шторке быстрых настроек.
+
+            exported="true" ОБЯЗАТЕЛЕН: сервис привязывает система, а не приложение.
+            Защита — системным разрешением BIND_QUICK_SETTINGS_TILE, чужое
+            приложение его получить не может.
+        -->
+        <service
+            android:name=".service.QuickTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_notification"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="true" />
+        </service>
+
+        <!--
+            v4.7.0: движок обхода DPI (byedpi) — ОБЯЗАТЕЛЬНО в отдельном процессе.
+
+            byedpi это консольная программа: её main(argc, argv) вызывается из
+            JNI и не возвращается до остановки, а состояние лежит в глобальных
+            переменных (params, mpool, conev), которые между двумя запусками в
+            одном процессе корректно не сбросить. JNI-обёртка поэтому разрешает
+            ровно ОДИН запуск (флаг proxy_started в cpp/byedpi-jni.c), а смена
+            пресета делается убийством и пересозданием процесса.
+
+            Держать его в основном процессе нельзя: там живут TunnelService и
+            sing-box, и их убийство означало бы обрыв туннеля и, возможно,
+            повторный системный диалог согласия VPN.
+
+            Та же схема в EwenLoy/ByeByeDPI-x-tg: ByeDpiVpnService и
+            ByeDpiProxyService объявлены с android:process=":native".
+
+            exported="false": процесс привязывается только нашим же
+            ByeDpiEngine.bindService().
+        -->
+        <service
+            android:name=".core.ByeDpiEngineService"
+            android:exported="false"
+            android:process=":byedpi" />
+
+        <!--
+            v4.10.0: Telegram-туннель (локальный MTProto-WS-прокси).
+
+            ЭТО НЕ VpnService. Сервис поднимает обычный TCP-слушатель на
+            127.0.0.1:<порт>; Telegram подключается к нему как к MTProto-прокси.
+            Ни TUN, ни разрешения VpnService, ни ключика в статусбаре — поэтому
+            он полностью независим от TunnelService и работает при любом из
+            трёх режимов (включая выключенный VPN).
+
+            android:process=":tgws" — ОБЯЗАТЕЛЬНО. Ядро (libtgwsproxy.so) это
+            Rust-cdylib с глобальным tokio-рантаймом, который «никогда не
+            дропается». Паника в таком cdylib заканчивается abort(), то есть
+            SIGABRT всего процесса: в основном процессе это убило бы VpnService
+            вместе с sing-box и оставило в статусбаре висящий ключик — ровно
+            тот баг, который чинили в v4.7.1. В отдельном процессе падение
+            натива рвёт только прокси Telegram.
+
+            foregroundServiceType="specialUse" + property-подтип "proxy".
+            Значения "proxy" в самом атрибуте foregroundServiceType НЕТ
+            (валидный список — в комментарии про разрешения выше), поэтому
+            тип берётся из манифеста через FOREGROUND_SERVICE_TYPE_MANIFEST,
+            а назначение описывается property. Та же схема в ByeByeDPI-x-tg.
+
+            stopWithTask="false": свап из недавних приложений не должен рвать
+            прокси — Telegram от этого просто потеряет соединение.
+
+            exported="false": сервис дёргают только наши же Intent'ы
+            (экран, уведомление, BootReceiver).
+        -->
+        <service
+            android:name=".core.tgws.TgWsService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:process=":tgws"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="proxy" />
+        </service>
+
+        <!--
+            Экран Telegram-туннеля. exported="false": заходить в него извне
+            некому, а уведомление сервиса открывает его тем же PendingIntent'ом
+            нашего пакета. configChanges — чтобы поворот экрана не пересоздавал
+            Activity и не терял несохранённый ввод (порт, секрет, домен CF).
+        -->
+        <activity
+            android:name=".TgWsActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:exported="false"
+            android:label="@string/tgws_title"
+            android:parentActivityName=".MainActivity"
+            android:theme="@style/Theme.Flicker" />
+
+        <!--
+            Автозапуск. exported="false" + permission: система доставит
+            BOOT_COMPLETED и так, а вот чужое приложение дёрнуть ресивер не сможет.
+        -->
+        <receiver
+            android:name=".receiver.BootReceiver"
+            android:enabled="true"
+            android:exported="false"
+            android:permission="android.permission.RECEIVE_BOOT_COMPLETED">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.REBOOT" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </receiver>
+    </application>
+
+</manifest>

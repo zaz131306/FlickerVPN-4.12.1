@@ -1,0 +1,29 @@
+# Скопируйте в android/local.properties. Этот файл ОБЯЗАТЕЛЬНО в .gitignore.
+#
+# Без первых четырёх строк assembleRelease упадёт с внятной ошибкой —
+# это намеренно: раньше release молча подписывался debug-ключом, а потом
+# APK доводили руками и получали неподписанный по v2 файл, который
+# Android 11+ отказывается ставить.
+
+sdk.dir=/path/to/Android/Sdk
+
+# --- релизная подпись ---
+# Путь лучше абсолютный: относительный считается от модуля :app.
+FLICKER_KEYSTORE_FILE=/home/you/keys/flicker-release.jks
+FLICKER_KEYSTORE_PASSWORD=пароль-хранилища
+FLICKER_KEY_ALIAS=flicker
+FLICKER_KEY_PASSWORD=пароль-ключа
+
+# --- создать keystore ---
+# keytool -genkeypair -v \
+#   -keystore ~/keys/flicker-release.jks -storetype PKCS12 \
+#   -keyalg RSA -keysize 4096 -validity 10950 \
+#   -alias flicker \
+#   -dname "CN=FlickerVPN, OU=Mobile, O=Flicker, C=RU"
+#
+# -validity 10950 = 30 лет. Android требует, чтобы сертификат действовал
+# ещё ~25 лет, иначе обновления со временем перестанут устанавливаться.
+#
+# Keystore нельзя терять: без него невозможно выпустить обновление —
+# все пользователи будут вынуждены удалять приложение и ставить заново.
+# Держите 2+ резервные копии вне репозитория.

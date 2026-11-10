@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<resources>
+    <color name="bg">#0B0F1A</color>
+    <color name="surface">#121827</color>
+    <color name="card">#1A2236</color>
+    <color name="accent">#5B8CFF</color>
+    <color name="ok">#00E5A0</color>
+    <color name="dead">#FF5B7F</color>
+    <color name="warn">#FFC85B</color>
+    <color name="text">#E8ECF5</color>
+    <color name="muted">#8A93A8</color>
+    <color name="stroke">#2A3350</color>
+</resources>
