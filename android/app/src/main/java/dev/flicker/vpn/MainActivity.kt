@@ -45,15 +45,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: ServerAdapter
     private val checkingIds = mutableSetOf<String>()
 
-    /**
-     * v4.12.0: запрошен ли системный диалог согласия для ОБХОДА DPI.
-     *
-     * Колбэк vpnPrepare раньше всегда звал connectNow(), а тому нужен
-     * выбранный узел (selectedServerJson ?: return) — в режиме обхода узла
-     * нет, и подтверждение согласия молча терялось. Плюс connectBypass()
-     * вообще не вызывал VpnService.prepare(): на свежей установке (согласие
-     * ещё не дано) establish() в сервисе падал — «проблема с подключением».
-     */
     private var pendingBypass = false
 
     private val vpnPrepare =
@@ -75,13 +66,6 @@ class MainActivity : AppCompatActivity() {
             if (intent?.action != TunnelService.BROADCAST_STATE) return
             val connected = intent.getBooleanExtra(TunnelService.EXTRA_CONNECTED, false)
             val message = intent.getStringExtra(TunnelService.EXTRA_MESSAGE)
-            // v4.12.0: синхронизация состояния в ЭТОТ (основной) процесс.
-            //
-            // Обход DPI живёт в процессе :bypass: Repository.setConnected и
-            // AppState обновляются ТАМ, а UI читает свои внутрипроцессные
-            // копии здесь. Без этой синхронизации подключение обхода никогда
-            // не отображалось: кнопка оставалась «Подключить», горела плашка
-            // рассинхрона, плитка сбрасывалась в «выключено».
             val name = intent.getStringExtra(TunnelService.EXTRA_NAME)
             if (connected) {
                 Repository.setConnected(true, name ?: "")
@@ -108,8 +92,6 @@ class MainActivity : AppCompatActivity() {
                     .setPositiveButton(android.R.string.ok, null)
                     .show()
             }
-            // v4.2.0: в режиме «Прокси» один раз показываем инструкцию,
-            // куда вписать прокси в Telegram.
             if (connected &&
                 dev.flicker.vpn.data.AppState.mode == dev.flicker.vpn.data.TunnelMode.Proxy &&
                 !proxyHintShown
@@ -151,18 +133,11 @@ class MainActivity : AppCompatActivity() {
         }
         binding.btnSettings.setOnClickListener { showSettings() }
 
-        // v4.7.0: режимы и аварийное отключение — на главном экране, не в меню.
         binding.btnModeBypass.setOnClickListener { setMode(Prefs.MODE_BYPASS) }
         binding.btnModeVpn.setOnClickListener { setMode(Prefs.MODE_VPN) }
         binding.btnModeProxy.setOnClickListener { setMode(Prefs.MODE_PROXY) }
         binding.btnHardStop.setOnClickListener { confirmHardStop() }
-        // v4.10.0: строка Telegram-туннеля открывает его экран. Туннель
-        // независим от VPN, поэтому здесь именно переход на экран, а не
-        // переключение режима.
         binding.tgwsRow.setOnClickListener { openTgWs() }
-        // v4.7.1: строка «Пресет: …» в карточке состояния — кликабельна, но
-        // только в режиме обхода DPI. Так выбор стратегии обнаруживается с
-        // главного экрана, без похода в настройки.
         binding.targetText.setOnClickListener {
             if (Prefs.mode(this) == Prefs.MODE_BYPASS) showPresetDialog()
         }
@@ -174,10 +149,6 @@ class MainActivity : AppCompatActivity() {
             askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        // Прошлая сессия не завершилась штатно -> процесс убили.
-        // Показываем один раз, чтобы пользователь знал: крах был, и есть где
-        // посмотреть причину. Маркер снимается сразу, иначе диалог вылезал бы
-        // при каждом запуске.
         if (CrashLog.previousSessionCrashed(this)) {
             CrashLog.markCleanExit(this)
             AlertDialog.Builder(this)
@@ -189,20 +160,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         if (!FlickerApp.nativeReady) {
-            // Показываем причину, а не абстрактное «ядро не загружено».
-            // Native.failureReason содержит конкретику: нет .so под эту ABI,
-            // dlopen отклонил библиотеку, 16KB-выравнивание и т.д.
             AlertDialog.Builder(this)
                 .setTitle(R.string.dlg_error_title)
                 .setMessage(Native.userVisibleError ?: getString(R.string.err_native_missing))
                 .setPositiveButton(android.R.string.ok, null)
                 .show()
-            // ВАЖНО: при неготовом ядре не запускаем автообновление.
-            // Раньше код показывал диалог и СРАЗУ ПОСЛЕ этого вызывал
-            // refreshSubs() → Repository.refresh() → Mobile.normalizeSources(),
-            // то есть native-вызов при незагруженной библиотеке. Диалог не успевал
-            // отрисоваться — процесс падал. Теперь refresh() защищён и внутри,
-            // но нет смысла вообще дёргать сеть, если ядра нет.
             renderUi()
             return
         }
@@ -212,9 +174,6 @@ class MainActivity : AppCompatActivity() {
                 .collect { renderUi() }
         }
 
-        // v4.8.1: в режиме обхода DPI подписки и узлы не используются вовсе,
-        // поэтому тянуть списки серверов при старте незачем — это лишний
-        // трафик и батарея ради данных, которые в этом режиме никто не читает.
         if (Prefs.mode(this) != Prefs.MODE_BYPASS &&
             Repository.autoRefresh && Repository.rawServers() == "[]"
         ) {
@@ -230,22 +189,12 @@ class MainActivity : AppCompatActivity() {
             IntentFilter(TunnelService.BROADCAST_STATE),
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
-        // v4.10.0: состояние Telegram-туннеля приходит из процесса ":tgws"
-        // broadcast'ом. Подписываемся здесь и сразу просим снимок: прокси мог
-        // быть поднят давно (из уведомления или автозапуска), а кэш в этом
-        // процессе пуст.
         TgWsClient.attach(this)
         TgWsClient.query(this)
         tgwsJob?.cancel()
         tgwsJob = lifecycleScope.launch { TgWsClient.state.collect { renderTgws(it) } }
-        // v4.12.0: догнать состояние обхода DPI, если UI перезапустился,
-        // а туннель в :bypass жив (broadcast уже не придёт).
         syncBypassState()
         renderUi()
-        // v4.7.0: счётчики трафика приходят из ядра раз в 2 с
-        // (Libbox.CommandStatus), а broadcast о них не рассылается — поэтому
-        // просто перечитываем их, пока экран виден. Тикер снимается в onPause,
-        // чтобы не будить UI в фоне.
         binding.root.removeCallbacks(trafficTicker)
         binding.root.postDelayed(trafficTicker, TRAFFIC_REFRESH_MS)
     }
@@ -253,9 +202,6 @@ class MainActivity : AppCompatActivity() {
     override fun onPause() {
         super.onPause()
         binding.root.removeCallbacks(trafficTicker)
-        // v4.10.0: подписка на состояние туннеля живёт на отдельном Job, а не
-        // на голом lifecycleScope: сам lifecycleScope отменяется только в
-        // onDestroy, а обновлять строку на невидимом экране незачем.
         tgwsJob?.cancel()
         tgwsJob = null
         TgWsClient.detach(this)
@@ -297,10 +243,8 @@ class MainActivity : AppCompatActivity() {
                 showDiagnostics()
                 return true
             }
-            R.id.action_mode -> {
-                showModeDialog()
-                return true
-            }
+            // v4.12.2: пункт action_mode убран — режим переключается кнопками
+            // на главном экране (btnModeBypass / btnModeVpn / btnModeProxy).
             R.id.action_netcheck -> {
                 runInternetCheck()
                 return true
@@ -333,15 +277,6 @@ class MainActivity : AppCompatActivity() {
         return super.onOptionsItemSelected(item)
     }
 
-    /**
-     * Диагностический дамп: устройство, состояние ядра, разрешение VPN, сеть
-     * и — главное — сгенерированный конфиг sing-box с вычищенными секретами.
-     *
-     * Зачем: молчаливый краш при подключении нельзя воспроизвести без телефона,
-     * а конфиг можно провалидировать офлайн по исходникам option/<имя>.go нужной
-     * версии sing-box. Именно так были найдены ошибки `dns.servers[].address`
-     * и `sniff` на tun-inbound — обе давали фатальный отказ разбора конфига.
-     */
     private fun showDiagnostics() {
         val dump = try {
             Diagnostics.collect(this)
@@ -350,8 +285,6 @@ class MainActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle(R.string.diagnostics_title)
-            // Дамп длинный, в диалоге его не прочитать целиком — поэтому
-            // основное действие «Копировать», а текст показываем хвостом.
             .setMessage(getString(R.string.diagnostics_hint) + "\n\n" +
                 (if (dump.length > 2500) "…" + dump.takeLast(2500) else dump))
             .setPositiveButton(R.string.diagnostics_copy) { _, _ ->
@@ -364,42 +297,19 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * Журнал сбоев — прямо на телефоне, без adb.
-     *
-     * Нужен потому, что приложение закрывалось при подключении БЕЗ диалога:
-     * ни краш-репорта, ни внятной причины. Теперь Java-исключения пишутся
-     * в filesDir/crash.log (CrashLog), а здесь их можно прочитать и скопировать.
-     *
-     * Если журнал ПУСТ, а приложение всё равно закрылось — значит крах нативный
-     * (SIGSEGV/SIGABRT внутри libflickerbox.so) либо исключение улетело из
-     * JNI-колбэка обратно в Go. Java-обработчик такое не ловит по определению;
-     * тогда нужен logcat (команды в docs/06-TESTING.md).
-     */
     private fun showCrashLog() {
-        // v4.0.8: перед показом заново выгребаем системный crash-буфер —
-        // tombstone дописывается системой 1-3 секунды ПОСЛЕ «Fatal signal»,
-        // и слив по горячим следам его обрезал. Теперь буфер содержит полный
-        // набор кадров и Abort message.
         CrashLog.dumpCrashBufferSync(this)
         val text = CrashLog.read(this, 60000, 30000)
-        // Показываем ОБА пути: наш Java-журнал и файл, куда libbox
-        // перенаправил stderr процесса. Второй — главный при нативном крахе:
-        // Go-паника в libflickerbox.so попадает только туда.
         val paths = getString(R.string.crash_log_path, CrashLog.path(this)) +
             "\n" + getString(R.string.crash_log_path, Native.nativeCrashReport(this).absolutePath)
         val body = if (!CrashLog.hasAnyRecord(this)) {
             getString(R.string.crash_log_empty) + "\n\n" + paths
         } else {
-            // v4.1.0: показываем и НАЧАЛО (раздел «ПРИЧИНА (кратко)» — там строка паники), и хвост (свежие записи).
             val shown = if (text.length > 9000)
                 text.take(5000) + "\n…(середина обрезана — полный текст в «Поделиться»/«Копировать»)…\n" + text.takeLast(3500)
             else text
             shown + "\n\n" + paths
         }
-        // v4.0.5: диалог с собственным набором кнопок — «Копировать»,
-        // «Поделиться» (системный ACTION_SEND: Telegram, почта, заметки —
-        // лог можно отправить прямо с телефона без ПК), «Очистить», «Закрыть».
         val pad = (14 * resources.displayMetrics.density).toInt()
         val container = android.widget.LinearLayout(this).apply {
             orientation = android.widget.LinearLayout.VERTICAL
@@ -464,29 +374,21 @@ class MainActivity : AppCompatActivity() {
         dlg.show()
     }
 
-    // ---------- v4.2.0: режим подключения и проверка интернета ----------
-
     private var proxyHintShown = false
 
     private fun showModeDialog() {
-        // v4.7.1: три режима, и выбор идёт через setMode() — там же проверка
-        // «туннель поднят, нужно переподключиться». Раньше этот диалог писал
-        // Prefs.setMode() напрямую, минуя проверку.
         val modes = arrayOf(
             "Обход DPI (без сервера, подмена пакетов — как ByeByeDPI)",
             "VPN-туннель через узел (весь трафик телефона)",
             "Локальный прокси (SOCKS5 для Telegram)"
         )
-        val current = when (dev.flicker.vpn.util.Prefs.mode(this)) {
-            dev.flicker.vpn.util.Prefs.MODE_BYPASS -> 0
-            dev.flicker.vpn.util.Prefs.MODE_PROXY -> 2
+        val current = when (Prefs.mode(this)) {
+            Prefs.MODE_BYPASS -> 0
+            Prefs.MODE_PROXY -> 2
             else -> 1
         }
         AlertDialog.Builder(this)
             .setTitle("Режим подключения")
-            // v4.8.1: объяснение разницы. Без него два режима выглядят
-            // одинаково («и то и другое включает ключик»), и непонятно,
-            // зачем они оба.
             .setMessage(
                 "Обход DPI — трафик идёт НАПРЯМУЮ к сайту, пакеты искажаются, " +
                     "чтобы фильтр не узнал запрос. Сервер и подписка не нужны, " +
@@ -501,9 +403,9 @@ class MainActivity : AppCompatActivity() {
                 d.dismiss()
                 setMode(
                     when (which) {
-                        0 -> dev.flicker.vpn.util.Prefs.MODE_BYPASS
-                        2 -> dev.flicker.vpn.util.Prefs.MODE_PROXY
-                        else -> dev.flicker.vpn.util.Prefs.MODE_VPN
+                        0 -> Prefs.MODE_BYPASS
+                        2 -> Prefs.MODE_PROXY
+                        else -> Prefs.MODE_VPN
                     }
                 )
             }
@@ -550,17 +452,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Самодиагностика туннеля: три контрольных запроса ПОСЛЕ подключения.
-     * Отвечает на главный вопрос удалённой отладки: трафик вообще ходит
-     * через узел или нет, и доступны ли с узла целевые сервисы.
-     */
     private fun netCheck(): String {
         val sb = StringBuilder()
         sb.append("FlickerVPN v").append(BuildConfig.VERSION_NAME)
             .append(" (").append(BuildConfig.VERSION_CODE).append(")\n")
         sb.append("Режим: ")
-            .append(if (dev.flicker.vpn.util.Prefs.mode(this) == "proxy") "ПРОКСИ (замеры идут МИМО прокси — они для VPN-режима)" else "VPN")
+            .append(if (Prefs.mode(this) == "proxy") "ПРОКСИ (замеры идут МИМО прокси — они для VPN-режима)" else "VPN")
             .append("\n")
         sb.append("Статус: ").append(dev.flicker.vpn.data.AppState.status).append("\n")
         sb.append("Узел: ").append(Repository.selectedServer()?.name ?: "—").append("\n\n")
@@ -596,18 +493,6 @@ class MainActivity : AppCompatActivity() {
         return sb.toString()
     }
 
-    // ---------- отрисовка ----------
-
-    // ------------------------------------------------------------------
-    //  v4.10.0: Telegram-туннель на главном экране
-    // ------------------------------------------------------------------
-
-    /**
-     * Job подписки на состояние Telegram-туннеля. Отдельный от lifecycleScope
-     * запуск нужен, чтобы снимать подписку в onPause: сам lifecycleScope
-     * отменяется только в onDestroy, а обновлять строку на невидимом экране
-     * незачем.
-     */
     private var tgwsJob: kotlinx.coroutines.Job? = null
 
     private fun openTgWs() {
@@ -619,14 +504,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * Строка Telegram-туннеля под переключателем режимов.
-     *
-     * Показываем именно СОСТОЯНИЕ, а не намерение: если сервис поднят, но
-     * натив ещё не занял порт (он тянет список доменов CloudFlare), пишем
-     * «запуск…». Тот же принцип, что в renderDesyncBanner() — не врать
-     * пользователю про «работает».
-     */
     private fun renderTgws(st: TgWsState) {
         val dot = when {
             st.verified -> R.drawable.dot_ok
@@ -635,11 +512,6 @@ class MainActivity : AppCompatActivity() {
             else -> R.drawable.dot_unknown
         }
         binding.tgwsDot.setBackgroundResource(dot)
-
-        // Адрес берём ИЗ СОСТОЯНИЯ, а не из настроек: TgWsPrefs.load() при
-        // пустом секрете генерирует и сохраняет новый, то есть имеет побочный
-        // эффект. Звать её из функции отрисовки, которая срабатывает каждые
-        // 5 секунд, — значит писать в SharedPreferences на ровном месте.
         val endpoint = st.endpoint.ifBlank { "127.0.0.1" }
         val text = when {
             st.error.isNotBlank() && !st.verified -> getString(R.string.tgws_main_row_err)
@@ -680,19 +552,11 @@ class MainActivity : AppCompatActivity() {
             binding.btnConnect.setText(R.string.btn_connect)
         }
 
-        // v4.7.0: вызываем ПОСЛЕ основного блока — renderModeButtons()
-        // переопределяет видимость списка и доступность кнопок, и его слово
-        // должно быть последним.
         renderStateCard(ui, selected)
         renderDesyncBanner()
         renderModeButtons()
     }
 
-    // ------------------------------------------------------------------
-    //  v4.7.0: карточка состояния, режимы, рассинхрон
-    // ------------------------------------------------------------------
-
-    /** Период перечитывания счётчиков трафика. Ядро отдаёт их раз в 2 с. */
     private val TRAFFIC_REFRESH_MS = 1_500L
 
     private val trafficTicker = object : Runnable {
@@ -702,25 +566,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * v4.12.0: живой ли туннель — с учётом обхода DPI.
-     *
-     * [TunnelService.isLive] (instance?.started) видит только сервис СВОЕГО
-     * процесса, а обход работает в :bypass — отсюда вечно false и ложная
-     * плашка рассинхрона. Для режима обхода источник правды — наличие
-     * VPN-интерфейса в системе (см. TunnelService.isVpnInterfaceUp).
-     */
     private fun tunnelLive(): Boolean =
         TunnelService.isLive ||
             (Prefs.mode(this) == Prefs.MODE_BYPASS && TunnelService.isVpnInterfaceUp(this))
 
-    /**
-     * v4.12.0: холодная синхронизация состояния обхода DPI.
-     *
-     * Если приложение перезапущено, а обход жив (:bypass пережил рестарт UI),
-     * восстановить «подключено» в этом процессе: из broadcast'а состояние уже
-     * не придёт (он одноразовый), а VPN-интерфейс система видит всегда.
-     */
     private fun syncBypassState() {
         if (Prefs.mode(this) != Prefs.MODE_BYPASS) return
         if (Repository.ui.value.connected) return
@@ -743,7 +592,6 @@ class MainActivity : AppCompatActivity() {
         else -> getString(R.string.mode_vpn_node)
     }
 
-    /** Режим + цель (узел ИЛИ пресет обхода) + трафик. */
     private fun renderStateCard(ui: Repository.UiState, selected: Repository.ServerRow?) {
         val mode = Prefs.mode(this)
         binding.modeText.text = getString(R.string.status_mode, modeTitle(mode))
@@ -786,33 +634,11 @@ class MainActivity : AppCompatActivity() {
         else -> String.format(java.util.Locale.US, "%.2f ГБ", v / (1024.0 * 1024 * 1024))
     }
 
-    /**
-     * Красная плашка: UI утверждает, что подключено, а живого сервиса нет.
-     *
-     * Это ровно та ситуация, при которой ключик в статусбаре висит, а кнопка
-     * «Отключить» ничего не делает: состояние хранимое, обновлять его было
-     * некому. Сверяем с [TunnelService.isLive] — вычисляемым состоянием
-     * (принцип Intra `VpnController.getState()` и v2rayNG `isRunning()`).
-     */
     private fun renderDesyncBanner() {
         val claimsConnected = Repository.ui.value.connected ||
             dev.flicker.vpn.data.AppState.status == dev.flicker.vpn.data.ServiceStatus.Connected
         val desync = claimsConnected && !tunnelLive()
         binding.desyncBanner.visibility = if (desync) View.VISIBLE else View.GONE
-        // НАМЕРЕННО без побочных эффектов.
-        //
-        // Соблазн «сразу сбросить залипшее состояние» здесь вреден по двум
-        // причинам:
-        //   1. на Repository.ui подписан `combine(...).collect { renderUi() }`
-        //      (onCreate), то есть setUi() внутри renderUi() запускает новый
-        //      проход рендера. Сошлось бы за два круга, но менять состояние
-        //      из функции отрисовки — лишний риск;
-        //   2. плашка исчезла бы мгновенно, а она ДОЛЖНА висеть, пока
-        //      пользователь не нажмёт «Снять» — это единственное видимое
-        //      свидетельство того, что ключик в статусбаре не соответствует
-        //      реальности.
-        // Сброс происходит сам: hardStop() завершает процесс, а при следующем
-        // запуске AppState и Repository.ui стартуют с чистыми значениями.
     }
 
     private fun renderModeButtons() {
@@ -827,8 +653,6 @@ class MainActivity : AppCompatActivity() {
         paint(binding.btnModeVpn, mode == Prefs.MODE_VPN)
         paint(binding.btnModeProxy, mode == Prefs.MODE_PROXY)
 
-        // В режиме обхода DPI список узлов и подписки не используются:
-        // внешнего сервера там нет. Скрываем, чтобы не вводить в заблуждение.
         val bypass = mode == Prefs.MODE_BYPASS
         val ui = Repository.ui.value
         binding.serverList.visibility = if (bypass) View.GONE else View.VISIBLE
@@ -842,9 +666,6 @@ class MainActivity : AppCompatActivity() {
         if (Prefs.mode(this) == mode) return
 
         if (tunnelLive()) {
-            // Конфиг туннеля зависит от режима, поэтому на живом туннеле его
-            // нужно пересобрать. Проще и честнее остановить и включить заново,
-            // чем перезапускать ядро под пользователем.
             AlertDialog.Builder(this)
                 .setTitle("Сменить режим")
                 .setMessage("Туннель сейчас поднят. Для смены режима его нужно отключить и включить заново. Отключить?")
@@ -862,8 +683,6 @@ class MainActivity : AppCompatActivity() {
         renderUi()
         toast("Режим: ${modeTitle(mode)}")
     }
-
-    // ---------- действия ----------
 
     private fun refreshSubs() {
         Repository.refresh(
@@ -884,13 +703,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun probeServers() {
         checkingIds.clear()
-        // probeSpecsFromServers — native: Go парсит весь список узлов и строит
-        // JSON-спеки. На подписке из сотен серверов это заметно, а вызов идёт
-        // из обработчика клика, то есть с главного потока. Уводим в IO.
         lifecycleScope.launch {
             val specs = withContext(Dispatchers.IO) {
-                // Throwable, а не Exception: при незагруженной .so прилетает
-                // UnsatisfiedLinkError (это Error), и catch(Exception) его пропускает.
                 if (!Native.ready) JSONArray() else try {
                     JSONArray(Mobile.probeSpecsFromServers(Repository.rawServers(), Repository.allowHY2))
                 } catch (e: Throwable) {
@@ -902,7 +716,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Продолжение [probeServers] после того, как спеки построены в фоне. */
     private fun startProbing(specs: JSONArray) {
         val total = specs.length()
         if (total == 0) {
@@ -935,17 +748,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun connectSelected() {
-        // v4.7.1: режим «Обход DPI» — внешнего сервера нет вообще, трафик идёт
-        // напрямую с искажением пакетов (byedpi). Требовать выбранный узел
-        // здесь нельзя, иначе режим невозможно включить.
         if (Prefs.mode(this) == Prefs.MODE_BYPASS) {
             connectBypass()
             return
         }
 
-        // v4.5.0: если выбранного узла больше нет (его вычистили как узел
-        // белого списка или он устарел), НЕ отказываем, а берём лучший
-        // встроенный и сразу его выбираем — пользователь видит, чем подключается.
         var row = Repository.selectedServer()
         if (row == null) {
             val fallback = Repository.firstBootstrap()
@@ -964,14 +771,10 @@ class MainActivity : AppCompatActivity() {
             toast(getString(R.string.err_demo_server))
             return
         }
-        // v4.2.0: в режиме «Прокси» системный VPN не поднимается —
-        // ни разрешения ОС, ни диалога согласия не нужно (метод ByeByeDPI).
-        if (dev.flicker.vpn.util.Prefs.mode(this) == "proxy") {
+        if (Prefs.mode(this) == "proxy") {
             connectNow()
             return
         }
-        // v4.7.1: в режиме обхода DPI TUN поднимается, поэтому диалог согласия
-        // обязателен — дальше по коду, общим путём через VpnService.prepare().
         val prepare = VpnService.prepare(this)
         if (prepare != null) {
             vpnPrepare.launch(prepare)
@@ -992,16 +795,6 @@ class MainActivity : AppCompatActivity() {
             renderUi()
             return
         }
-        // Ранняя валидация конфига — ошибки показываем до запуска сервиса.
-        // Мигрируем ДО проверки, иначе checkTunConfig отвергнет конфиг по той
-        // же причине, что и ядро, и пользователь увидит ошибку, хотя
-        // подключение на самом деле прошло бы.
-        //
-        // ОБА вызова — native (Go парсит и валидирует JSON). БЫЛО: они шли
-        // прямо в обработчике клика, то есть на ГЛАВНОМ потоке. На большом
-        // списке узлов или медленном устройстве это блокировка UI, а при
-        // зависании ядра — ANR с убийством процесса без внятного диалога.
-        // Тот же антипаттерн, что был в TunnelService.startTunnel.
         lifecycleScope.launch {
             val error = withContext(Dispatchers.IO) {
                 try {
@@ -1009,7 +802,7 @@ class MainActivity : AppCompatActivity() {
                         ConfigMigrate.migrate(Mobile.buildTunConfig(json, Repository.tunParamsJson()))
                     )
                     null
-                } catch (e: Throwable) {   // Throwable: buildTunConfig — native
+                } catch (e: Throwable) {
                     e.message ?: e.javaClass.simpleName
                 }
             }
@@ -1026,19 +819,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /**
-     * v4.12.0: подключение в режиме обхода DPI — схема эталона ByeByeDPI-x-tg.
-     *
-     * Что изменилось по сравнению с 4.11.0:
-     *   * движок обхода больше НЕ зависит от Go-ядра (libflickerbox.so):
-     *     проверка Native.ready и валидация BypassConfig через
-     *     Mobile.checkTunConfig убраны — вместо них проверяются libbyedpi.so
-     *     и libhev-socks5-tunnel.so, которые реально нужны сервису;
-     *   * ОБЯЗАТЕЛЬНЫЙ VpnService.prepare(): TUN поднимается, значит системное
-     *     согласие необходимо. Раньше prepare() не вызывался вовсе, и на
-     *     свежей установке establish() в сервисе получал отказ — пользователь
-     *     видел «не подключается».
-     */
     private fun connectBypass() {
         val byedpiOk = dev.flicker.vpn.core.ByeDpiProxy.nativeReady
         val tproxyOk = dev.flicker.vpn.core.TProxyService.nativeReady
@@ -1069,24 +849,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** Согласие VPN получено (или уже было) — поднимаем обход. */
     private fun startBypassNow() {
         pendingBypass = false
         binding.statusText.text = getString(R.string.status_connecting)
         TunnelService.start(this@MainActivity, TunnelService.BYPASS_NO_SERVER)
     }
 
-    /**
-     * v4.7.1: выбор стратегии обхода DPI.
-     *
-     * Показываем все пресеты с пояснением, зачем каждый нужен: подбирать
-     * параметры byedpi вслепую бессмысленно, а подпись «OOB / Split / Fake»
-     * без объяснения пользователю ничего не говорит.
-     *
-     * Если туннель поднят — предупреждаем, что пресет применится только после
-     * переподключения (движок byedpi одноразовый на процесс: смена параметров
-     * это остановка и новый запуск).
-     */
     private fun showPresetDialog() {
         val presets = dev.flicker.vpn.core.ByeDpiArgs.PRESETS
         val currentId = Prefs.byedpiPreset(this)
@@ -1113,13 +881,10 @@ class MainActivity : AppCompatActivity() {
             }
             .setNeutralButton("Своя строка…") { _, _ -> showCustomArgsDialog() }
             .setNegativeButton(android.R.string.cancel, null)
-            // v4.8.0: автоподбор. Отдельная кнопка в меню, чтобы её было видно
-            // и из диалога пресетов тоже.
             .setPositiveButton("Подобрать автоматически") { _, _ -> runStrategyTest() }
             .show()
     }
 
-    /** v4.7.1: произвольная командная строка byedpi (пустая = вернуться к пресету). */
     private fun showCustomArgsDialog() {
         val input = EditText(this).apply {
             setText(Prefs.byedpiCommand(this@MainActivity))
@@ -1144,10 +909,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ------------------------------------------------------------------
-    //  v4.8.0: автоподбор рабочей стратегии обхода DPI
-    // ------------------------------------------------------------------
-
     private var tester: dev.flicker.vpn.core.StrategyTester? = null
     private var testDialog: AlertDialog? = null
     private var testText: android.widget.TextView? = null
@@ -1158,17 +919,6 @@ class MainActivity : AppCompatActivity() {
         runOnUiThread { testText?.text = text }
     }
 
-    /**
-     * Прогон подборщика стратегий.
-     *
-     * VPN для теста НЕ нужен: byedpi — обычный SOCKS5 на 127.0.0.1, и тестер
-     * ходит через него напрямую, минуя TUN и sing-box. Поэтому запускать можно
-     * в любом состоянии, и тест проверяет именно обход DPI, а не всю цепочку.
-     *
-     * Занимает 2-4 минуты (9 пресетов × 5 сайтов, на каждый пресет — перезапуск
-     * процесса :byedpi). Прогресс показываем обязательно: без него выглядит как
-     * зависание, и пользователь убивает приложение посередине.
-     */
     private fun runStrategyTest() {
         if (tester != null) {
             toast("Подбор уже идёт")
@@ -1301,8 +1051,6 @@ class MainActivity : AppCompatActivity() {
             ) { _, _ ->
                 if (best != null) {
                     Prefs.setByedpiPreset(this, best.presetId)
-                    // Своя командная строка переопределяет пресет — чистим,
-                    // иначе выбор не применится.
                     if (Prefs.byedpiCommand(this).isNotEmpty()) {
                         Prefs.setByedpiCommand(this, "")
                     }
@@ -1324,19 +1072,6 @@ class MainActivity : AppCompatActivity() {
         renderUi()
     }
 
-    /**
-     * v4.7.0: аварийное отключение — «ключик висит и не убирается».
-     *
-     * Предупреждаем, что приложение будет закрыто: [TunnelService.hardStop]
-     * в худшем случае завершает процесс, а это весь наш процесс, включая UI.
-     * Настройки и список узлов не теряются (SharedPreferences пишутся
-     * синхронно), но несохранённого в интерфейсе состояния не останется.
-     */
-
-    /**
-     * v4.12.1: выход из приложения. Останавливает туннель штатно
-     * (без hardStop) и закрывает все активности.
-     */
     private fun confirmExit() {
         AlertDialog.Builder(this)
             .setTitle("Выйти из приложения?")
@@ -1364,8 +1099,6 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Выключить принудительно") { _, _ ->
                 toast("Принудительное отключение…")
                 TunnelService.hardStop(this)
-                // UI закроется вместе с процессом; если процесс выживет —
-                // просто перерисуем состояние.
                 binding.root.postDelayed({ renderUi() }, 500)
             }
             .setNegativeButton(android.R.string.cancel, null)
@@ -1399,8 +1132,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ---------- настройки ----------
-
     private fun showSettings() {
         val view = layoutInflater.inflate(R.layout.dialog_settings, null)
         val swAutoRefresh = view.findViewById<SwitchMaterial>(R.id.sw_auto_refresh)
@@ -1423,8 +1154,6 @@ class MainActivity : AppCompatActivity() {
         swAutostart.isChecked = Prefs.autoStart(this)
         swAutoReconnect.isChecked = Prefs.autoReconnect(this)
 
-        // Если исключение из оптимизации уже получено — кнопку гасим,
-        // чтобы не предлагать одно и то же каждый раз.
         btnBattery.isEnabled = Battery.shouldAsk(this)
         btnBattery.alpha = if (btnBattery.isEnabled) 1f else 0.4f
 
@@ -1437,7 +1166,6 @@ class MainActivity : AppCompatActivity() {
                 try {
                     val dns = edDns.text.toString()
                     Repository.setDnsServer(dns)
-                    // v4.12.1: один DNS и для VPN, и для обхода DPI
                     Prefs.setBypassDns(this@MainActivity, dns.trim().ifBlank { "1.1.1.1" })
                 } catch (e: IllegalArgumentException) {
                     toast(getString(R.string.err_invalid_dns))
@@ -1470,13 +1198,6 @@ class MainActivity : AppCompatActivity() {
         dialog.show()
     }
 
-    /**
-     * Диалог про оптимизацию батареи.
-     *
-     * Показываем только если исключение ещё не получено. Отдельный диалог, а не
-     * прямой переход в системные настройки, потому что на китайских прошивках
-     * системного диалога часто нет — тогда предлагаем OEM-экран автозапуска.
-     */
     private fun showBatteryDialog() {
         if (!Battery.shouldAsk(this)) {
             toast(getString(R.string.pref_battery_summary))
@@ -1487,9 +1208,6 @@ class MainActivity : AppCompatActivity() {
             .setMessage(R.string.battery_dialog_message)
             .setPositiveButton(R.string.battery_dialog_ok) { _, _ ->
                 Prefs.setBatteryAsked(this)
-                // Сначала пробуем системный диалог; если прошивка его не даёт —
-                // открываем OEM-экран автозапуска, а уже если и его нет —
-                // общий список приложений с оптимизацией.
                 if (!Battery.requestIgnore(this)) {
                     if (!Battery.openVendorAutostart(this)) {
                         Battery.openBatterySettings(this)
@@ -1502,11 +1220,6 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    /**
-     * Состояние circuit breaker'а источников подписок: кто заморожен, на сколько
-     * и с какой ошибкой. Без этого экрана SourceHealth работает «в стол» —
-     * пользователь видит только «источников стало меньше», но не понимает почему.
-     */
     private fun showSourcesHealth() {
         val lines = SourceHealth.describe(this)
         val text = if (lines.isEmpty()) {
