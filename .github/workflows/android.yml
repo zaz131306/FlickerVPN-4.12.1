@@ -123,8 +123,10 @@ jobs:
       - name: Setup Gradle (with cache)
         uses: gradle/actions/setup-gradle@v4
 
+      # ВАЖНО: v4, а не v3. v3 пытается поставить пакет 'tools', который
+      # Google удалил из репозитория SDK, и падает на "Failed to find package 'tools'".
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Install build-tools и NDK
         run: |
