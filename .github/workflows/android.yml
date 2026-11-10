@@ -48,6 +48,9 @@ env:
   GO_VERSION: '1.26'
   BUILD_TOOLS: '34.0.0'
   NDK_VERSION: '27.2.12479018'   # та же версия, что в app/build.gradle.kts и build-libbox-aar.sh
+  # Build tags для sing-box: без них Reality (with_utls) и WireGuard (with_gvisor)
+  # компилируются в заглушки и любой E2E-тест падает на инициализации.
+  GO_BUILD_TAGS: 'with_gvisor,with_quic,with_wireguard,with_utls,with_clash_api,with_low_memory,badlinkname,tfogo_checklinkname0'
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -78,18 +81,18 @@ jobs:
 
       - name: go vet
         working-directory: native
-        run: go vet ./...
+        run: go vet -tags "$GO_BUILD_TAGS" ./...
 
       - name: Тесты ядра
         working-directory: native
         # -short: пропускаем долгие e2e/speed-тесты на каждый пуш.
         # Полный прогон — в nightly и перед релизом (см. отдельный шаг ниже).
-        run: go test -short -race ./internal/... ./mobile/...
+        run: go test -short -race -tags "$GO_BUILD_TAGS" ./internal/... ./mobile/...
 
       - name: Полные тесты (включая e2e и PQ-изоляцию)
         working-directory: native
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        run: go test -timeout 20m ./internal/tunnel/... ./internal/probe/...
+        run: go test -timeout 20m -tags "$GO_BUILD_TAGS" ./internal/tunnel/... ./internal/probe/...
 
   # ---------------------------------------------------------------------------
   #  Нативка + APK
@@ -132,25 +135,27 @@ jobs:
           restore-keys: go-${{ runner.os }}-
 
       # -----------------------------------------------------------------------
-      #  AAR ядра под все 4 ABI. Это самый долгий шаг (30–50 мин).
-      #  Скрипт сам проверяет, что все ABI легли в AAR, и что .so выровнена
-      #  по 16 КБ — при провале проверки он печатает предупреждение.
+      #  AAR ядра. build-libbox-aar.sh по умолчанию собирает arm64-v8a + x86_64
+      #  (см. -target android/arm64,android/amd64 в скрипте). Остальные ABI
+      #  (armeabi-v7a, x86) скрипт не собирает — проверка ниже исправлена
+      #  соответствующим образом.
       # -----------------------------------------------------------------------
-      - name: Build libflickerbox.so (все ABI)
+      - name: Build libflickerbox.so (arm64-v8a + x86_64)
         run: |
           chmod +x tools/build-libbox-aar.sh
           ./tools/build-libbox-aar.sh 2>&1 | tee aar-build.log
 
       # Жёсткая проверка: если хоть одной ABI нет — сплит соберётся пустым и
       # упадёт на устройстве с UnsatisfiedLinkError, а сборка при этом пройдёт.
-      - name: Проверить, что в AAR все четыре ABI
+      # ВАЖНО: build-libbox-aar.sh собирает только arm64-v8a и x86_64.
+      - name: Проверить, что в AAR обе собираемые ABI
         run: |
           AAR=android/app/libs/flicker-box.aar
           test -f "$AAR" || { echo "::error::AAR не собран"; exit 1; }
           FOUND=$(unzip -l "$AAR" | grep -oE 'jni/[a-z0-9_-]+/libflickerbox\.so' | sort -u)
           echo "$FOUND"
           fail=0
-          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+          for abi in arm64-v8a x86_64; do
             echo "$FOUND" | grep -q "jni/$abi/" || { echo "::error::в AAR нет $abi"; fail=1; }
           done
           exit $fail
@@ -286,8 +291,7 @@ jobs:
             | ABI | Для чего |
             |---|---|
             | `arm64-v8a` | все современные телефоны |
-            | `armeabi-v7a` | 32-битные и старые |
-            | `x86_64` / `x86` | эмуляторы |
+            | `x86_64` | эмуляторы |
 
             > ⚠️ Если раньше стояла сборка с **другой подписью** — сначала удали её.
             > Поверх не встанет: Android сверяет сертификат подписи.
