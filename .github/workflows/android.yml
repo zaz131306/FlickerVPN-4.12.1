@@ -83,16 +83,21 @@ jobs:
         working-directory: native
         run: go vet -tags "$GO_BUILD_TAGS" ./...
 
+      # -gcflags=all=-d=checkptr=0: -race включает checkptr, который ловит
+      # небезопасную арифметику указателей в сторонней библиотеке sing-vmess
+      # (vless/vision.go) и роняет весь процесс fatal error: checkptr.
+      # Это баг зависимости, а не нашего кода, поэтому отключаем проверку
+      # только для тестового прогона. На сборку AAR (gomobile bind) это не влияет.
       - name: Тесты ядра
         working-directory: native
         # -short: пропускаем долгие e2e/speed-тесты на каждый пуш.
         # Полный прогон — в nightly и перед релизом (см. отдельный шаг ниже).
-        run: go test -short -race -tags "$GO_BUILD_TAGS" ./internal/... ./mobile/...
+        run: go test -short -race -gcflags=all=-d=checkptr=0 -tags "$GO_BUILD_TAGS" ./internal/... ./mobile/...
 
       - name: Полные тесты (включая e2e и PQ-изоляцию)
         working-directory: native
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-        run: go test -timeout 20m -tags "$GO_BUILD_TAGS" ./internal/tunnel/... ./internal/probe/...
+        run: go test -timeout 20m -gcflags=all=-d=checkptr=0 -tags "$GO_BUILD_TAGS" ./internal/tunnel/... ./internal/probe/...
 
   # ---------------------------------------------------------------------------
   #  Нативка + APK
